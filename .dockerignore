@@ -1,0 +1,5 @@
+.git
+.github
+.zig-cache
+zig-out
+SESSION_REPORT.md

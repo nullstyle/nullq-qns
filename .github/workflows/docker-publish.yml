@@ -1,0 +1,102 @@
+name: Docker Build and Push
+
+on:
+  schedule:
+    - cron: '13 13 * * *'
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  push_build: false
+  trigger_build: false
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NULLQ_REPO: nullstyle/nullq
+  NULLQ_REF: main
+  BORINGSSL_ZIG_REPO: nullstyle/boringssl-zig
+  BORINGSSL_ZIG_REF: main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Resolve latest nullq commit
+        run: |
+          LATEST_COMMIT=$(curl -fsSL "https://api.github.com/repos/${{ env.NULLQ_REPO }}/commits/${{ env.NULLQ_REF }}" | jq -r '.sha')
+          echo "commit_id=$LATEST_COMMIT" >> "$GITHUB_ENV"
+
+      - name: Install Skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq skopeo
+
+      - name: Look up commit ID labelled on the latest published image
+        run: |
+          LATEST_IMAGE_COMMIT=$(skopeo inspect "docker://${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" 2>/dev/null | jq -r '.Labels.commit_id' || echo "none")
+          echo "latest_image_commit=$LATEST_IMAGE_COMMIT" >> "$GITHUB_ENV"
+
+      - name: Decide whether to rebuild
+        run: |
+          if [ "${{ env.commit_id }}" != "${{ env.latest_image_commit }}" ]; then
+            echo "nullq commit changed; rebuilding."
+            echo "trigger_build=true" >> "$GITHUB_ENV"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual dispatch; rebuilding."
+            echo "trigger_build=true" >> "$GITHUB_ENV"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "Pull request; building (without push) to validate."
+            echo "trigger_build=true" >> "$GITHUB_ENV"
+          else
+            echo "Image already at $latest_image_commit; skipping."
+            echo "trigger_build=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Decide whether to push
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: echo "push_build=true" >> "$GITHUB_ENV"
+
+      - name: Login to GitHub Container Registry
+        if: env.push_build == 'true'
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        if: env.trigger_build == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: env.trigger_build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        if: env.trigger_build == 'true'
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: Dockerfile
+          push: ${{ env.push_build }}
+          platforms: linux/amd64
+          build-args: |
+            NULLQ_REPO=https://github.com/${{ env.NULLQ_REPO }}.git
+            NULLQ_REF=${{ env.commit_id }}
+            BORINGSSL_ZIG_REPO=https://github.com/${{ env.BORINGSSL_ZIG_REPO }}.git
+            BORINGSSL_ZIG_REF=${{ env.BORINGSSL_ZIG_REF }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.commit_id }}
+          labels: |
+            commit_id=${{ env.commit_id }}

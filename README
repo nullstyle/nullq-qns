@@ -1,0 +1,137 @@
+nullq-qns
+=========
+
+Docker image that wraps the nullq QUIC implementation [4] for the official
+QUIC interoperability test runner [1] and its companion network simulator [2].
+Public test results are published at [3].
+
+The image bundles a single Zig-built binary (`qns-endpoint`, sourced from
+nullq's `interop/qns_endpoint.zig`) on top of the upstream
+`martenseemann/quic-network-simulator-endpoint:latest` base. Both server
+and client roles speak HTTP/0.9 over QUIC v1 with ALPN `hq-interop`.
+The entrypoint forwards `SSLKEYLOGFILE` and `QLOGDIR` to the endpoint so
+runner traces can include Wireshark-compatible TLS secrets and nullq
+qlog-style key lifecycle JSONL files.
+
+Files
+-----
+
+    Dockerfile            multi-stage build that clones nullq + boringssl-zig
+                          from GitHub and produces /qns-endpoint
+    Dockerfile.local      local-development build that uses sibling checkouts
+                          through Docker named build contexts
+    run_endpoint.sh       entrypoint that maps the runner's TESTCASE/ROLE
+                          environment to qns-endpoint flags
+    Makefile              docker build / push helpers
+    .github/workflows/    CI that rebuilds and publishes the image to
+                          ghcr.io/nullstyle/nullq-qns when nullq changes
+    README                this file
+
+Build
+-----
+
+    make build              # local image as nullq-qns:latest
+    make build-local        # local image as nullq-qns:local from ../nullq
+
+Override the upstream sources or pin a specific commit with --build-arg:
+
+    docker build \
+        --build-arg NULLQ_REF=v0.1.0 \
+        --build-arg BORINGSSL_ZIG_REF=v0.5.0 \
+        -t nullq-qns:custom .
+
+Available build args:
+
+    ZIG_VERSION             zig toolchain to download (default 0.16.0)
+    NULLQ_REPO/NULLQ_REF    nullq git url and ref (default main)
+    BORINGSSL_ZIG_REPO/     boringssl-zig git url and ref (default main)
+        BORINGSSL_ZIG_REF
+
+Runner registration
+-------------------
+
+The implementation entry for `quic-interop-runner` should be:
+
+    "nullq": {
+      "image": "ghcr.io/nullstyle/nullq-qns:latest",
+      "url": "https://github.com/nullstyle/nullq",
+      "role": "both"
+    }
+
+Local runner validation
+-----------------------
+
+For development before nullq commits are pushed to GitHub, build from the
+sibling checkouts and run the official runner through nullq's Zig wrapper:
+
+    make build-local
+    make interop
+    make interop-features
+
+The default `make interop` matrix runs nullq-qns as the server against
+`quic-go`, `ngtcp2`, and `quiche` for handshake and transfer. The
+`make interop-features` target runs the stronger `quic-go` feature gate:
+handshake, transfer, chacha20, retry, resumption, zerortt, and
+multiplexing.
+
+Defaults assume this workspace layout:
+
+    ../nullq
+    ../boringssl-zig
+    ../quic-interop-runner
+
+Override `NULLQ_DIR`, `BORINGSSL_ZIG_DIR`, `RUNNER_DIR`, `CLIENTS`, and
+`TESTS` as needed. `make build-local` stages `git archive` snapshots of
+the sibling repos under `.local-context/`, so commit local nullq changes
+before using it when you need the image to include them. Use
+`make clean-local-context` to force a fresh snapshot.
+
+Run locally
+-----------
+
+    # server (HTTP/0.9 over QUIC, ALPN hq-interop) on udp/443
+    docker run --rm -e ROLE=server \
+        -v $PWD/certs:/certs:ro -v $PWD/www:/www:ro \
+        -p 4433:443/udp nullq-qns:latest
+
+    # client downloading from a peer
+    docker run --rm -e ROLE=client \
+        -e SERVER=peer:443 -e SERVER_NAME=peer \
+        -e REQUESTS="https://peer:443/index.html" \
+        -v $PWD/downloads:/downloads nullq-qns:latest
+
+Supported testcases
+-------------------
+
+The handshake, transfer, longrtt, chacha20, multiplexing, retry,
+resumption, zerortt, keyupdate, blackhole, handshakeloss, transferloss,
+handshakecorruption, and transfercorruption cases are wired through.
+Anything else (including versionnegotiation, http3, multiconnect,
+connectionmigration, ecn) exits 127 so the runner records it as
+'unsupported'.
+
+Trace output
+------------
+
+When the runner sets tracing variables, `run_endpoint.sh` passes them to
+`qns-endpoint`:
+
+    SSLKEYLOGFILE=/logs/keys.log     # standard TLS key log lines
+    QLOGDIR=/logs/qlog               # nullq key lifecycle JSONL traces
+
+Current status
+--------------
+
+The standalone `nullq-qns:local` image built from the sibling `nullq`
+checkout has passed the official runner with nullq-as-server for:
+
+    quic-go, ngtcp2, quiche: H,D
+    quic-go: H,D,C,S,R,Z,M
+
+`nullq-qns:local` should be held to the same bar before publishing a new
+image.
+
+[1] https://github.com/marten-seemann/quic-interop-runner
+[2] https://github.com/marten-seemann/quic-network-simulator
+[3] https://interop.seemann.io
+[4] https://github.com/nullstyle/nullq

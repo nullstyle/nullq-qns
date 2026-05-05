@@ -1,0 +1,71 @@
+#!/bin/bash
+# Entrypoint for the QUIC interop runner.
+#
+# The runner sets ROLE=server|client and TESTCASE=<name>, plus a handful of
+# scenario-specific env vars (REQUESTS, SERVER, SERVER_NAME). Unknown
+# testcases must exit 127 so the harness records them as 'unsupported'.
+# See https://github.com/marten-seemann/quic-interop-runner for the contract.
+
+set -eu
+
+# Set up the routing the network simulator expects.
+/setup.sh
+
+case "${TESTCASE:-}" in
+    ""|handshake|transfer|longrtt|chacha20|multiplexing|retry|resumption|zerortt|keyupdate|blackhole|handshakeloss|transferloss|handshakecorruption|transfercorruption)
+        # Supported (or no testcase pinned: use defaults).
+        ;;
+    versionnegotiation|http3|multiconnect|connectionmigration|amplificationlimit|crosstraffic|goodput|v2|ecn)
+        echo "nullq-qns does not yet implement TESTCASE=${TESTCASE}" >&2
+        exit 127
+        ;;
+    *)
+        echo "nullq-qns does not recognise TESTCASE=${TESTCASE:-unset}" >&2
+        exit 127
+        ;;
+esac
+
+case "${ROLE:-server}" in
+    server)
+        echo ">>> nullq-qns server: TESTCASE=${TESTCASE:-default}"
+        retry_arg=""
+        if [ "${TESTCASE:-}" = "retry" ]; then
+            retry_arg="-retry"
+        fi
+        set -- /qns-endpoint server \
+            -listen 0.0.0.0:443 \
+            -www /www \
+            -cert /certs/cert.pem \
+            -key /certs/priv.key
+        if [ -n "${SSLKEYLOGFILE:-}" ]; then
+            set -- "$@" -keylog-file "${SSLKEYLOGFILE}"
+        fi
+        if [ -n "${QLOGDIR:-}" ]; then
+            set -- "$@" -qlog-dir "${QLOGDIR}"
+        fi
+        if [ -n "${retry_arg}" ]; then
+            set -- "$@" "${retry_arg}"
+        fi
+        exec "$@"
+        ;;
+    client)
+        echo ">>> nullq-qns client: TESTCASE=${TESTCASE:-default} REQUESTS=${REQUESTS:-}"
+        set -- /qns-endpoint client \
+            -server "${SERVER:-server:443}" \
+            -server-name "${SERVER_NAME:-server}" \
+            -downloads /downloads \
+            -requests "${REQUESTS:-}" \
+            -testcase "${TESTCASE:-}"
+        if [ -n "${SSLKEYLOGFILE:-}" ]; then
+            set -- "$@" -keylog-file "${SSLKEYLOGFILE}"
+        fi
+        if [ -n "${QLOGDIR:-}" ]; then
+            set -- "$@" -qlog-dir "${QLOGDIR}"
+        fi
+        exec "$@"
+        ;;
+    *)
+        echo "nullq-qns: unknown ROLE=${ROLE:-unset}" >&2
+        exit 127
+        ;;
+esac
