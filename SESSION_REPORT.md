@@ -178,9 +178,13 @@ quic-go server-side feature gate: ✓(H,DC,C20,S,R,Z,M)
 quic-go client-side feature gate: ✓(H,DC,C20,S,R,Z,M)
 ```
 
-The quic-go feature run still prints the upstream runner warning
-`At least one QUIC packet could not be decrypted`, matching the internal
-nullq image run. The matrix result is green.
+The earlier quic-go 0-RTT trace warning
+`At least one QUIC packet could not be decrypted` was traced to runner
+keylog selection: quic-go's client keylog was valid but lacked
+`CLIENT_EARLY_TRAFFIC_SECRET`, while nullq's server keylog had it.
+nullq's wrapper now merges valid client/server keylogs in the throwaway
+runner overlay, and the focused `make interop CLIENTS=quic-go TESTS=Z`
+run is green without the warning.
 
 The client-side C20 gate depends on the `boringssl-zig` AES-hardware
 testing override added after the initial scaffold, which lets the QNS
