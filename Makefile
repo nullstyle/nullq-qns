@@ -12,10 +12,14 @@ RUNNER_DIR        ?= ../quic-interop-runner
 CLIENTS           ?= quic-go,ngtcp2,quiche
 SERVERS           ?= quic-go,ngtcp2,quiche
 TESTS             ?= H,D
+LOSS_TESTS        ?= loss
+CLIENT_LOSS_TESTS ?= transferloss,blackhole
+LOSS_SCENARIO     ?= drop-rate --delay=15ms --bandwidth=10Mbps --queue=25 --rate_to_server=2 --rate_to_client=2 --burst_to_server=3 --burst_to_client=3
+SCENARIO_ARGS     = $(if $(SCENARIO),--scenario "$(SCENARIO)",)
 LOCAL_CONTEXT     ?= .local-context
 
 default:
-	@echo "valid targets: build build-local interop interop-client interop-both interop-features push all"
+	@echo "valid targets: build build-local interop interop-client interop-both interop-features interop-loss interop-loss-client interop-loss-both interop-lossy-scenario interop-lossy-scenario-client push all"
 
 build:
 	docker build --pull -t $(IMG):$(TAG) -f Dockerfile .
@@ -39,7 +43,8 @@ interop:
 		--runner-dir $(RUNNER_DIR) \
 		--image $(IMG):$(LOCALTAG) \
 		--clients $(CLIENTS) \
-		--tests $(TESTS)
+		--tests $(TESTS) \
+		$(SCENARIO_ARGS)
 
 interop-client:
 	cd $(NULLQ_DIR) && mise exec -- zig build external-interop -- runner \
@@ -47,12 +52,27 @@ interop-client:
 		--runner-dir $(RUNNER_DIR) \
 		--image $(IMG):$(LOCALTAG) \
 		--servers $(SERVERS) \
-		--tests $(TESTS)
+		--tests $(TESTS) \
+		$(SCENARIO_ARGS)
 
 interop-both: interop interop-client
 
 interop-features:
 	$(MAKE) interop CLIENTS=quic-go TESTS=H,D,C,S,R,Z,M
+
+interop-loss:
+	$(MAKE) interop CLIENTS=quic-go TESTS=$(LOSS_TESTS)
+
+interop-loss-client:
+	$(MAKE) interop-client SERVERS=quic-go TESTS=$(CLIENT_LOSS_TESTS)
+
+interop-loss-both: interop-loss interop-loss-client
+
+interop-lossy-scenario:
+	$(MAKE) interop CLIENTS=quic-go TESTS=H,D,Z SCENARIO="$(LOSS_SCENARIO)"
+
+interop-lossy-scenario-client:
+	$(MAKE) interop-client SERVERS=quic-go TESTS=H,D,Z SCENARIO="$(LOSS_SCENARIO)"
 
 push:
 	docker tag $(IMG):$(TAG) $(REPO):$(TAG)
@@ -63,4 +83,4 @@ clean-local-context:
 
 all: build push
 
-.PHONY: default build prepare-local-context build-local interop interop-client interop-both interop-features push clean-local-context all
+.PHONY: default build prepare-local-context build-local interop interop-client interop-both interop-features interop-loss interop-loss-client interop-loss-both interop-lossy-scenario interop-lossy-scenario-client push clean-local-context all

@@ -12,10 +12,10 @@ set -eu
 /setup.sh
 
 case "${TESTCASE:-}" in
-    ""|handshake|transfer|longrtt|chacha20|multiplexing|retry|resumption|zerortt|keyupdate|blackhole|handshakeloss|transferloss|handshakecorruption|transfercorruption)
+    ""|handshake|transfer|longrtt|chacha20|multiplexing|retry|resumption|zerortt|keyupdate|blackhole|handshakeloss|transferloss|handshakecorruption|transfercorruption|multiconnect)
         # Supported (or no testcase pinned: use defaults).
         ;;
-    versionnegotiation|http3|multiconnect|connectionmigration|amplificationlimit|crosstraffic|goodput|v2|ecn)
+    versionnegotiation|http3|connectionmigration|amplificationlimit|crosstraffic|goodput|v2|ecn)
         echo "nullq-qns does not yet implement TESTCASE=${TESTCASE}" >&2
         exit 127
         ;;
@@ -49,6 +49,10 @@ case "${ROLE:-server}" in
         exec "$@"
         ;;
     client)
+        if [ "${TESTCASE:-}" = "multiconnect" ]; then
+            echo "nullq-qns client does not yet implement TESTCASE=${TESTCASE}" >&2
+            exit 127
+        fi
         echo ">>> nullq-qns client: TESTCASE=${TESTCASE:-default} REQUESTS=${REQUESTS:-}"
         server_arg="${SERVER:-}"
         if [ -z "${server_arg}" ] && [ -n "${REQUESTS:-}" ]; then
