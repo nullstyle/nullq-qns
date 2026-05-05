@@ -137,12 +137,12 @@ The local wrapper also supports nullq-as-client private gates. Current
 local client-role results are:
 
     quic-go, ngtcp2, quiche: H,D
-    quic-go: H,D,S,R,Z,M
+    quic-go: H,D,C,S,R,Z,M
 
-Client-role C20 is the remaining red feature case because the current
-`boringssl-zig` surface does not expose a C-callable TLS 1.3
-cipher-suite preference/override for the QNS harness. Keep these
-results local while nullq burns in before any upstream runner
+The client-role C20 path depends on the committed `boringssl-zig`
+AES-hardware testing override so nullq's QNS harness can produce a
+deterministic ChaCha-preferred ClientHello on AES-capable hosts. Keep
+these results local while nullq burns in before any upstream runner
 registration.
 
 `nullq-qns:local` should be held to the same bar before publishing a new

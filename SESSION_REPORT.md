@@ -167,15 +167,22 @@ Verified with the current workspace:
 make build-local
 make interop
 make interop-features
+make interop-client SERVERS=quic-go TESTS=H,D,C,S,R,Z,M
 ```
 
 Results:
 
 ```
 quic-go, ngtcp2, quiche: ✓(H,DC)
-quic-go: ✓(H,DC,C20,S,R,Z,M)
+quic-go server-side feature gate: ✓(H,DC,C20,S,R,Z,M)
+quic-go client-side feature gate: ✓(H,DC,C20,S,R,Z,M)
 ```
 
 The quic-go feature run still prints the upstream runner warning
 `At least one QUIC packet could not be decrypted`, matching the internal
 nullq image run. The matrix result is green.
+
+The client-side C20 gate depends on the `boringssl-zig` AES-hardware
+testing override added after the initial scaffold, which lets the QNS
+client produce a deterministic ChaCha-preferred TLS 1.3 ClientHello on
+AES-capable hosts.
