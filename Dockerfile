@@ -4,8 +4,6 @@ ARG TARGETPLATFORM
 ARG ZIG_VERSION=0.16.0
 ARG NULLQ_REPO=https://github.com/nullstyle/nullq.git
 ARG NULLQ_REF=main
-ARG BORINGSSL_ZIG_REPO=https://github.com/nullstyle/boringssl-zig.git
-ARG BORINGSSL_ZIG_REF=main
 
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
@@ -23,12 +21,10 @@ RUN case "${TARGETPLATFORM:-linux/amd64}" in \
     && rm /tmp/zig.tar.xz
 ENV PATH="/opt/zig:${PATH}"
 
-# nullq references boringssl-zig as a sibling path dep (`../boringssl-zig`),
-# so both checkouts must live under the same parent directory.
+# nullq pins boringssl-zig as a URL+hash dep, so it's fetched by Zig
+# during build. Only nullq itself needs to be checked out here.
 WORKDIR /src
-RUN git clone "${BORINGSSL_ZIG_REPO}" /src/boringssl-zig \
-    && git -C /src/boringssl-zig checkout "${BORINGSSL_ZIG_REF}" \
-    && git clone "${NULLQ_REPO}" /src/nullq \
+RUN git clone "${NULLQ_REPO}" /src/nullq \
     && git -C /src/nullq checkout "${NULLQ_REF}"
 
 WORKDIR /src/nullq

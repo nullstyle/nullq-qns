@@ -7,7 +7,6 @@ REG      ?= ghcr.io/nullstyle
 REPO     ?= $(REG)/$(IMG)
 
 NULLQ_DIR         ?= ../nullq
-BORINGSSL_ZIG_DIR ?= ../boringssl-zig
 RUNNER_DIR        ?= ../quic-interop-runner
 CLIENTS           ?= quic-go,ngtcp2,quiche
 SERVERS           ?= quic-go,ngtcp2,quiche
@@ -26,14 +25,12 @@ build:
 
 prepare-local-context:
 	rm -rf $(LOCAL_CONTEXT)
-	mkdir -p $(LOCAL_CONTEXT)/nullq $(LOCAL_CONTEXT)/boringssl-zig
+	mkdir -p $(LOCAL_CONTEXT)/nullq
 	git -C $(NULLQ_DIR) archive --format=tar HEAD | tar -x -C $(LOCAL_CONTEXT)/nullq
-	git -C $(BORINGSSL_ZIG_DIR) archive --format=tar HEAD | tar -x -C $(LOCAL_CONTEXT)/boringssl-zig
 
 build-local: prepare-local-context
 	docker build --pull \
 		--build-context nullq=$(LOCAL_CONTEXT)/nullq \
-		--build-context boringssl-zig=$(LOCAL_CONTEXT)/boringssl-zig \
 		-t $(IMG):$(LOCALTAG) \
 		-f Dockerfile.local .
 

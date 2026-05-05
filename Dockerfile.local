@@ -22,7 +22,6 @@ RUN case "${TARGETPLATFORM:-linux/amd64}" in \
 ENV PATH="/opt/zig:${PATH}"
 
 WORKDIR /src
-COPY --from=boringssl-zig . /src/boringssl-zig
 COPY --from=nullq . /src/nullq
 
 WORKDIR /src/nullq

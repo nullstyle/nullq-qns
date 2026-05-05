@@ -16,10 +16,11 @@ qlog-style key lifecycle JSONL files.
 Files
 -----
 
-    Dockerfile            multi-stage build that clones nullq + boringssl-zig
-                          from GitHub and produces /qns-endpoint
-    Dockerfile.local      local-development build that uses sibling checkouts
-                          through Docker named build contexts
+    Dockerfile            multi-stage build that clones nullq from GitHub
+                          and produces /qns-endpoint (boringssl-zig is fetched
+                          by Zig from the URL pin in nullq's build.zig.zon)
+    Dockerfile.local      local-development build that uses a local nullq
+                          context through a Docker named build context
     run_endpoint.sh       entrypoint that maps the runner's TESTCASE/ROLE
                           environment to qns-endpoint flags
     Makefile              docker build / push helpers
@@ -33,19 +34,19 @@ Build
     make build              # local image as nullq-qns:latest
     make build-local        # local image as nullq-qns:local from ../nullq
 
-Override the upstream sources or pin a specific commit with --build-arg:
+Override the upstream source or pin a specific commit with --build-arg:
 
     docker build \
         --build-arg NULLQ_REF=v0.1.0 \
-        --build-arg BORINGSSL_ZIG_REF=v0.5.0 \
         -t nullq-qns:custom .
 
 Available build args:
 
     ZIG_VERSION             zig toolchain to download (default 0.16.0)
     NULLQ_REPO/NULLQ_REF    nullq git url and ref (default main)
-    BORINGSSL_ZIG_REPO/     boringssl-zig git url and ref (default main)
-        BORINGSSL_ZIG_REF
+
+The boringssl-zig version is determined by the URL+hash pin in nullq's
+build.zig.zon — to bump it, change the pin in nullq, not here.
 
 Runner registration
 -------------------
@@ -81,14 +82,13 @@ zerortt, and multiplexing.
 Defaults assume this workspace layout:
 
     ../nullq
-    ../boringssl-zig
     ../quic-interop-runner
 
-Override `NULLQ_DIR`, `BORINGSSL_ZIG_DIR`, `RUNNER_DIR`, `CLIENTS`,
-`SERVERS`, and `TESTS` as needed. `make build-local` stages
-`git archive` snapshots of the sibling repos under `.local-context/`, so
-commit local nullq changes before using it when you need the image to
-include them. Use
+Override `NULLQ_DIR`, `RUNNER_DIR`, `CLIENTS`, `SERVERS`, and `TESTS`
+as needed. `make build-local` stages a `git archive` snapshot of nullq
+under `.local-context/`, so commit local nullq changes before using
+it when you need the image to include them. Zig fetches boringssl-zig
+from the URL pin during the in-Docker build. Use
 `make clean-local-context` to force a fresh snapshot.
 
 Run locally
@@ -139,11 +139,13 @@ local client-role results are:
     quic-go, ngtcp2, quiche: H,D
     quic-go: H,D,C,S,R,Z,M
 
-The client-role C20 path depends on the committed `boringssl-zig`
-AES-hardware testing override so nullq's QNS harness can produce a
-deterministic ChaCha-preferred ClientHello on AES-capable hosts. Keep
-these results local while nullq burns in before any upstream runner
-registration.
+The client-role C20 path depends on the boringssl-zig AES-hardware
+testing override (commit 8c47b6e and later) so nullq's QNS harness
+can produce a deterministic ChaCha-preferred ClientHello on
+AES-capable hosts. The URL+hash pin in nullq's build.zig.zon must
+reference a boringssl-zig revision that includes this override.
+Keep these results local while nullq burns in before any upstream
+runner registration.
 
 `nullq-qns:local` should be held to the same bar before publishing a new
 image.
