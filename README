@@ -133,9 +133,17 @@ checkout has passed the official runner with nullq-as-server for:
     quic-go, ngtcp2, quiche: H,D
     quic-go: H,D,C,S,R,Z,M
 
-The local wrapper now also supports nullq-as-client private gates with
-`make interop-client`; keep those results local while nullq burns in
-before any upstream runner registration.
+The local wrapper also supports nullq-as-client private gates. Current
+local client-role results are:
+
+    quic-go, ngtcp2, quiche: H,D
+    quic-go: H,D,S,R,Z,M
+
+Client-role C20 is the remaining red feature case because the current
+`boringssl-zig` surface does not expose a C-callable TLS 1.3
+cipher-suite preference/override for the QNS harness. Keep these
+results local while nullq burns in before any upstream runner
+registration.
 
 `nullq-qns:local` should be held to the same bar before publishing a new
 image.
