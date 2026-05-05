@@ -50,9 +50,22 @@ case "${ROLE:-server}" in
         ;;
     client)
         echo ">>> nullq-qns client: TESTCASE=${TESTCASE:-default} REQUESTS=${REQUESTS:-}"
+        server_arg="${SERVER:-}"
+        if [ -z "${server_arg}" ] && [ -n "${REQUESTS:-}" ]; then
+            first_request=${REQUESTS%% *}
+            server_arg=${first_request#*://}
+            server_arg=${server_arg%%/*}
+        fi
+        if [ -z "${server_arg}" ]; then
+            server_arg="server4:443"
+        fi
+        server_name_arg="${SERVER_NAME:-}"
+        if [ -z "${server_name_arg}" ]; then
+            server_name_arg=${server_arg%%:*}
+        fi
         set -- /qns-endpoint client \
-            -server "${SERVER:-server:443}" \
-            -server-name "${SERVER_NAME:-server}" \
+            -server "${server_arg}" \
+            -server-name "${server_name_arg}" \
             -downloads /downloads \
             -requests "${REQUESTS:-}" \
             -testcase "${TESTCASE:-}"

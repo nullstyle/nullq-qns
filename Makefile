@@ -10,11 +10,12 @@ NULLQ_DIR         ?= ../nullq
 BORINGSSL_ZIG_DIR ?= ../boringssl-zig
 RUNNER_DIR        ?= ../quic-interop-runner
 CLIENTS           ?= quic-go,ngtcp2,quiche
+SERVERS           ?= quic-go,ngtcp2,quiche
 TESTS             ?= H,D
 LOCAL_CONTEXT     ?= .local-context
 
 default:
-	@echo "valid targets: build build-local interop interop-features push all"
+	@echo "valid targets: build build-local interop interop-client interop-both interop-features push all"
 
 build:
 	docker build --pull -t $(IMG):$(TAG) -f Dockerfile .
@@ -34,10 +35,21 @@ build-local: prepare-local-context
 
 interop:
 	cd $(NULLQ_DIR) && mise exec -- zig build external-interop -- runner \
+		--role server \
 		--runner-dir $(RUNNER_DIR) \
 		--image $(IMG):$(LOCALTAG) \
 		--clients $(CLIENTS) \
 		--tests $(TESTS)
+
+interop-client:
+	cd $(NULLQ_DIR) && mise exec -- zig build external-interop -- runner \
+		--role client \
+		--runner-dir $(RUNNER_DIR) \
+		--image $(IMG):$(LOCALTAG) \
+		--servers $(SERVERS) \
+		--tests $(TESTS)
+
+interop-both: interop interop-client
 
 interop-features:
 	$(MAKE) interop CLIENTS=quic-go TESTS=H,D,C,S,R,Z,M
@@ -51,4 +63,4 @@ clean-local-context:
 
 all: build push
 
-.PHONY: default build prepare-local-context build-local interop interop-features push clean-local-context all
+.PHONY: default build prepare-local-context build-local interop interop-client interop-both interop-features push clean-local-context all

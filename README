@@ -66,13 +66,17 @@ sibling checkouts and run the official runner through nullq's Zig wrapper:
 
     make build-local
     make interop
+    make interop-client
+    make interop-both
     make interop-features
 
 The default `make interop` matrix runs nullq-qns as the server against
 `quic-go`, `ngtcp2`, and `quiche` for handshake and transfer. The
-`make interop-features` target runs the stronger `quic-go` feature gate:
-handshake, transfer, chacha20, retry, resumption, zerortt, and
-multiplexing.
+`make interop-client` matrix runs nullq-qns as the client against those
+external servers, and `make interop-both` runs both directions. The
+`make interop-features` target runs the stronger `quic-go` server-side
+feature gate: handshake, transfer, chacha20, retry, resumption,
+zerortt, and multiplexing.
 
 Defaults assume this workspace layout:
 
@@ -80,10 +84,11 @@ Defaults assume this workspace layout:
     ../boringssl-zig
     ../quic-interop-runner
 
-Override `NULLQ_DIR`, `BORINGSSL_ZIG_DIR`, `RUNNER_DIR`, `CLIENTS`, and
-`TESTS` as needed. `make build-local` stages `git archive` snapshots of
-the sibling repos under `.local-context/`, so commit local nullq changes
-before using it when you need the image to include them. Use
+Override `NULLQ_DIR`, `BORINGSSL_ZIG_DIR`, `RUNNER_DIR`, `CLIENTS`,
+`SERVERS`, and `TESTS` as needed. `make build-local` stages
+`git archive` snapshots of the sibling repos under `.local-context/`, so
+commit local nullq changes before using it when you need the image to
+include them. Use
 `make clean-local-context` to force a fresh snapshot.
 
 Run locally
@@ -127,6 +132,10 @@ checkout has passed the official runner with nullq-as-server for:
 
     quic-go, ngtcp2, quiche: H,D
     quic-go: H,D,C,S,R,Z,M
+
+The local wrapper now also supports nullq-as-client private gates with
+`make interop-client`; keep those results local while nullq burns in
+before any upstream runner registration.
 
 `nullq-qns:local` should be held to the same bar before publishing a new
 image.
