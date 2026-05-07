@@ -25,7 +25,8 @@ WORKDIR /src
 COPY --from=nullq . /src/nullq
 
 WORKDIR /src/nullq
-RUN zig build qns-endpoint -Doptimize=ReleaseSafe
+# See Dockerfile for why -Dcpu=baseline.
+RUN zig build qns-endpoint -Doptimize=ReleaseSafe -Dcpu=baseline
 
 
 FROM martenseemann/quic-network-simulator-endpoint:latest

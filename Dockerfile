@@ -27,8 +27,14 @@ WORKDIR /src
 RUN git clone "${NULLQ_REPO}" /src/nullq \
     && git -C /src/nullq checkout "${NULLQ_REF}"
 
+# Build for the architecture's baseline CPU. Without this, Zig defaults
+# to "native" (the build host's CPU), which makes BoringSSL's CRYPTO_is_*_capable
+# helpers compile-time-shortcut to `return 1` whenever the build host advertises
+# the feature (e.g. __SHA__, __AVX2__). The resulting binary then dispatches
+# into hardware paths the deployment CPU may not support — SIGILL on the first
+# sha256rnds2, vpshufb, etc. Baseline keeps the runtime CPUID checks honest.
 WORKDIR /src/nullq
-RUN zig build qns-endpoint -Doptimize=ReleaseSafe
+RUN zig build qns-endpoint -Doptimize=ReleaseSafe -Dcpu=baseline
 
 
 FROM martenseemann/quic-network-simulator-endpoint:latest
