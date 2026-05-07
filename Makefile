@@ -18,7 +18,7 @@ SCENARIO_ARGS     = $(if $(SCENARIO),--scenario "$(SCENARIO)",)
 LOCAL_CONTEXT     ?= .local-context
 
 default:
-	@echo "valid targets: build build-local interop interop-client interop-both interop-features interop-loss interop-loss-client interop-loss-both interop-lossy-scenario interop-lossy-scenario-client push all"
+	@echo "valid targets: build build-local interop interop-client interop-both interop-features interop-loss interop-loss-client interop-loss-both interop-lossy-scenario interop-lossy-scenario-client push push-amd64 all"
 
 build:
 	docker build --pull -t $(IMG):$(TAG) -f Dockerfile .
@@ -75,9 +75,18 @@ push:
 	docker tag $(IMG):$(TAG) $(REPO):$(TAG)
 	docker push $(REPO):$(TAG)
 
+# Build linux/amd64 directly to GHCR without staging a local image.
+# Useful from arm64 hosts when CI is lagging the latest nullq commit.
+# Requires `docker login ghcr.io` and a buildx builder.
+push-amd64:
+	docker buildx build --pull --push \
+		--platform linux/amd64 \
+		-t $(REPO):$(TAG) \
+		-f Dockerfile .
+
 clean-local-context:
 	rm -rf $(LOCAL_CONTEXT)
 
 all: build push
 
-.PHONY: default build prepare-local-context build-local interop interop-client interop-both interop-features interop-loss interop-loss-client interop-loss-both interop-lossy-scenario interop-lossy-scenario-client push clean-local-context all
+.PHONY: default build prepare-local-context build-local interop interop-client interop-both interop-features interop-loss interop-loss-client interop-loss-both interop-lossy-scenario interop-lossy-scenario-client push push-amd64 clean-local-context all

@@ -16,8 +16,6 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   NULLQ_REPO: nullstyle/nullq
   NULLQ_REF: main
-  BORINGSSL_ZIG_REPO: nullstyle/boringssl-zig
-  BORINGSSL_ZIG_REF: main
 
 jobs:
   build:
@@ -68,7 +66,7 @@ jobs:
 
       - name: Login to GitHub Container Registry
         if: env.push_build == 'true'
-        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -76,15 +74,15 @@ jobs:
 
       - name: Set up QEMU
         if: env.trigger_build == 'true'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         if: env.trigger_build == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build and push Docker image
         if: env.trigger_build == 'true'
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
           file: Dockerfile
@@ -93,8 +91,6 @@ jobs:
           build-args: |
             NULLQ_REPO=https://github.com/${{ env.NULLQ_REPO }}.git
             NULLQ_REF=${{ env.commit_id }}
-            BORINGSSL_ZIG_REPO=https://github.com/${{ env.BORINGSSL_ZIG_REPO }}.git
-            BORINGSSL_ZIG_REF=${{ env.BORINGSSL_ZIG_REF }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.commit_id }}
