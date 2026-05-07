@@ -17,8 +17,27 @@ LOSS_SCENARIO     ?= drop-rate --delay=15ms --bandwidth=10Mbps --queue=25 --rate
 SCENARIO_ARGS     = $(if $(SCENARIO),--scenario "$(SCENARIO)",)
 LOCAL_CONTEXT     ?= .local-context
 
+# Remote interop runner targets (a Digital Ocean droplet, etc.).
+# REMOTE_HOST is the ssh destination — either an alias from ~/.ssh/config
+# or `user@host`. Override for a different droplet:
+#   make interop-remote-mainstream REMOTE_HOST=root@1.2.3.4
+REMOTE_HOST       ?= root@nullq-interop
+REMOTE_DIR        ?= /root/quic-interop-runner
+REMOTE_PYTHON     ?= $(REMOTE_DIR)/.venv/bin/python3
+MAINSTREAM_IMPLS  ?= quic-go,ngtcp2,quiche,picoquic,aioquic,msquic,neqo,quinn,s2n-quic,lsquic,xquic
+FEATURE_CLIENTS   ?= quic-go,ngtcp2,quiche
+FEATURE_TESTS     ?= handshake,transfer,chacha20,retry,resumption,zerortt,multiplexing,keyupdate,longrtt
+
 default:
-	@echo "valid targets: build build-local interop interop-client interop-both interop-features interop-loss interop-loss-client interop-loss-both interop-lossy-scenario interop-lossy-scenario-client push push-amd64 all"
+	@echo "Image build / publish:"
+	@echo "    build build-local push push-amd64 all"
+	@echo "Local interop (nullq-qns:local against sibling impls):"
+	@echo "    interop interop-client interop-both interop-features"
+	@echo "    interop-loss interop-loss-client interop-loss-both"
+	@echo "    interop-lossy-scenario interop-lossy-scenario-client"
+	@echo "Remote interop (runner on \$$REMOTE_HOST, default $(REMOTE_HOST)):"
+	@echo "    interop-remote-pull interop-remote-mainstream"
+	@echo "    interop-remote-features interop-remote-matrix"
 
 build:
 	docker build --pull -t $(IMG):$(TAG) -f Dockerfile .
@@ -87,6 +106,30 @@ push-amd64:
 clean-local-context:
 	rm -rf $(LOCAL_CONTEXT)
 
+# Refresh the published nullq-qns image on the droplet.
+interop-remote-pull:
+	ssh $(REMOTE_HOST) 'docker pull ghcr.io/nullstyle/nullq-qns:latest && \
+		docker image inspect ghcr.io/nullstyle/nullq-qns:latest \
+		    --format "pulled commit_id={{index .Config.Labels \"commit_id\"}}"'
+
+# nullq vs the mainstream impl set, handshake + transfer (~10-15 min on c-8).
+# Uses -i nullq so only pairs that include nullq run.
+interop-remote-mainstream: interop-remote-pull
+	ssh -t $(REMOTE_HOST) "cd $(REMOTE_DIR) && $(REMOTE_PYTHON) run.py -i nullq \
+		-s $(MAINSTREAM_IMPLS) -c $(MAINSTREAM_IMPLS) -t handshake,transfer"
+
+# Strongest feature signal: nullq vs the known-good clients, full feature
+# gate (~5-10 min on c-8).
+interop-remote-features: interop-remote-pull
+	ssh -t $(REMOTE_HOST) "cd $(REMOTE_DIR) && $(REMOTE_PYTHON) run.py -s nullq \
+		-c $(FEATURE_CLIENTS) -t $(FEATURE_TESTS)"
+
+# Everything nullq is in, every test the runner knows about (~1.5-2.5 hr on
+# c-8). Writes a JSON report and a stable log dir for post-processing.
+interop-remote-matrix: interop-remote-pull
+	ssh -t $(REMOTE_HOST) "cd $(REMOTE_DIR) && $(REMOTE_PYTHON) run.py -i nullq \
+		-j /tmp/matrix.json -l logs/full-matrix"
+
 all: build push
 
-.PHONY: default build prepare-local-context build-local interop interop-client interop-both interop-features interop-loss interop-loss-client interop-loss-both interop-lossy-scenario interop-lossy-scenario-client push push-amd64 clean-local-context all
+.PHONY: default build prepare-local-context build-local interop interop-client interop-both interop-features interop-loss interop-loss-client interop-loss-both interop-lossy-scenario interop-lossy-scenario-client push push-amd64 interop-remote-pull interop-remote-mainstream interop-remote-features interop-remote-matrix clean-local-context all
