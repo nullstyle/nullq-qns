@@ -32,8 +32,13 @@ case "${ROLE:-server}" in
         if [ "${TESTCASE:-}" = "retry" ]; then
             retry_arg="-retry"
         fi
+        # Bind the IPv6 wildcard so the runner's `ipv6` testcase is reachable.
+        # Linux's `bindv6only=0` default (true inside the upstream
+        # quic-network-simulator-endpoint base image) makes a `[::]:443`
+        # socket also accept v4 traffic via mapped addresses, so this
+        # single bind covers both stacks.
         set -- /qns-endpoint server \
-            -listen 0.0.0.0:443 \
+            -listen "[::]:443" \
             -www /www \
             -cert /certs/cert.pem \
             -key /certs/priv.key
